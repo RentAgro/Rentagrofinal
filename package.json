@@ -10,6 +10,5 @@
     "react": "latest",
     "react-dom": "latest",
     "xlsx": "latest"
-  },
-  "devDependencies": {}
+  }
 }

@@ -1,302 +1,66 @@
-import { useEffect, useState } from 'react';
+
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import * as XLSX from 'xlsx';
 
-export default function Home() {
-  const [session, setSession] = useState(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const n=x=>Number(x||0), money=v=>'$'+Math.round(n(v)).toLocaleString('es-AR'), today=()=>new Date().toISOString().slice(0,10);
 
-  const [empresaId, setEmpresaId] = useState('');
-  const [campaniaId, setCampaniaId] = useState('');
-  const [loteId, setLoteId] = useState('');
+export default function Home(){
+ const [session,setSession]=useState(null),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[msg,setMsg]=useState(''),[tab,setTab]=useState('dashboard');
+ const [empresas,setEmpresas]=useState([]),[campanias,setCampanias]=useState([]),[lotes,setLotes]=useState([]);
+ const [empresaId,setEmpresaId]=useState(''),[campaniaId,setCampaniaId]=useState(''),[loteId,setLoteId]=useState('');
+ const [prodAgri,setProdAgri]=useState([]),[costosAgri,setCostosAgri]=useState([]),[ventasAgri,setVentasAgri]=useState([]),[stockGan,setStockGan]=useState([]),[prodGan,setProdGan]=useState([]),[costosGan,setCostosGan]=useState([]),[ventasGan,setVentasGan]=useState([]);
+ const [empresa,setEmpresa]=useState({nombre:'Mi empresa',pais:'Argentina',provincia:'',localidad:''});
+ const [campania,setCampania]=useState({nombre:'2025/2026',fecha_inicio:'',fecha_fin:'',estado:'activa'});
+ const [lote,setLote]=useState({nombre:'Lote 1',campo:'',superficie_ha:0,provincia:'',localidad:'',tenencia:'propio',costo_alquiler_ha:0,cultivo_actual:'Soja'});
+ const [pa,setPa]=useState({fecha:today(),cultivo:'Soja',hectareas:0,rinde_esperado_qq_ha:0,rinde_real_qq_ha:0,toneladas:0,precio_estimado:0,observaciones:''});
+ const [ca,setCa]=useState({fecha:today(),cultivo:'Soja',categoria:'Herbicida',concepto:'',cantidad_por_ha:0,costo_unitario:0,hectareas:0,unidad:'lt',moneda:'ARS',proveedor:'',forma_pago:'',observaciones:''});
+ const [va,setVa]=useState({fecha:today(),cultivo:'Soja',cantidad:0,unidad:'tn',toneladas:0,precio:0,precio_tn:0,moneda:'ARS',comprador:'',condicion:'',estado:'pendiente'});
+ const [sg,setSg]=useState({fecha:today(),categoria:'Vacas',cabezas:0,peso_promedio_kg:0,campo_lote:'',observaciones:''});
+ const [pg,setPg]=useState({fecha:today(),categoria:'Recría',potrero:'',cabezas:0,peso_inicial_kg:0,peso_final_kg:0,dias_ciclo:0});
+ const [cg,setCg]=useState({fecha:today(),categoria:'Cría',tipo_costo:'Sanidad',concepto:'',costo_total:0,cabezas:0,moneda:'ARS',proveedor:'',observaciones:''});
+ const [vg,setVg]=useState({fecha:today(),categoria:'Novillos',cabezas:0,kilos_vendidos:0,precio_kg:0,comprador:'',comision:0,flete:0,moneda:'ARS'});
 
-  const [costos, setCostos] = useState([]);
-  const [ventas, setVentas] = useState([]);
-  const [mensaje, setMensaje] = useState('');
+ useEffect(()=>{supabase.auth.getSession().then(({data})=>setSession(data.session)); const {data:l}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s)); return()=>l.subscription.unsubscribe()},[]);
+ useEffect(()=>{if(session)cargarTodo()},[session]); useEffect(()=>{if(empresaId)cargarTodo()},[empresaId]);
 
-  const [empresaNombre, setEmpresaNombre] = useState('Mi empresa');
-  const [campaniaNombre, setCampaniaNombre] = useState('2024/25');
-  const [loteNombre, setLoteNombre] = useState('Lote Norte');
-  const [loteHa, setLoteHa] = useState(100);
+ async function ingresar(){const {error}=await supabase.auth.signInWithPassword({email,password}); setMsg(error?error.message:'Ingreso correcto.')}
+ async function registrar(){const {error}=await supabase.auth.signUp({email,password}); setMsg(error?error.message:'Usuario creado. Revisá email si pide confirmación.')}
+ async function salir(){await supabase.auth.signOut(); setSession(null)}
+ async function cargarTodo(){
+  const emp=await supabase.from('empresas').select('*').order('created_at',{ascending:false}); setEmpresas(emp.data||[]);
+  const eid=empresaId||emp.data?.[0]?.id||''; if(eid&&!empresaId)setEmpresaId(eid); if(!eid)return;
+  const [cam,lot,a,b,c,d,e,f,g]=await Promise.all([
+   supabase.from('campanias').select('*').eq('empresa_id',eid).order('created_at',{ascending:false}),
+   supabase.from('lotes').select('*').eq('empresa_id',eid).order('nombre'),
+   supabase.from('produccion_agricola').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}),
+   supabase.from('costos_agricolas').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}),
+   supabase.from('ventas_agricolas').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}),
+   supabase.from('stock_ganadero').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}),
+   supabase.from('produccion_ganadera').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}),
+   supabase.from('costos_ganaderos').select('*').eq('empresa_id',eid).order('fecha',{ascending:false}),
+   supabase.from('ventas_ganaderas').select('*').eq('empresa_id',eid).order('fecha',{ascending:false})
+  ]);
+  setCampanias(cam.data||[]); setLotes(lot.data||[]); if(!campaniaId&&cam.data?.[0])setCampaniaId(cam.data[0].id); if(!loteId&&lot.data?.[0])setLoteId(lot.data[0].id);
+  setProdAgri(a.data||[]); setCostosAgri(b.data||[]); setVentasAgri(c.data||[]); setStockGan(d.data||[]); setProdGan(e.data||[]); setCostosGan(f.data||[]); setVentasGan(g.data||[]);
+ }
+ async function insertar(tabla,payload,ok){ if(!empresaId)return setMsg('Primero creá o seleccioná una empresa.'); const {error}=await supabase.from(tabla).insert(payload); if(error)return setMsg(error.message); setMsg(ok); cargarTodo();}
+ async function crearEmpresa(){const {data,error}=await supabase.from('empresas').insert(empresa).select().single(); if(error)return setMsg(error.message); await supabase.from('usuarios_empresa').insert({user_id:session.user.id,empresa_id:data.id,email:session.user.email,nombre:session.user.email,rol:'admin'}); setEmpresaId(data.id); setMsg('Empresa creada.'); cargarTodo();}
+ const r=useMemo(()=>{let ia=ventasAgri.reduce((a,x)=>a+n(x.ingreso_total),0), caa=costosAgri.reduce((a,x)=>a+n(x.costo_total),0), ig=ventasGan.reduce((a,x)=>a+n(x.ingreso_total),0), cgx=costosGan.reduce((a,x)=>a+n(x.costo_total),0); return {ia,caa,ma:ia-caa,ig,cgx,mg:ig-cgx,total:ia+ig-caa-cgx}},[ventasAgri,costosAgri,ventasGan,costosGan]);
+ function exportar(){const wb=XLSX.utils.book_new(); Object.entries({Empresas:empresas,Campanias:campanias,Lotes:lotes,Produccion_Agricola:prodAgri,Costos_Agricolas:costosAgri,Ventas_Agricolas:ventasAgri,Stock_Ganadero:stockGan,Produccion_Ganadera:prodGan,Costos_Ganaderos:costosGan,Ventas_Ganaderas:ventasGan}).forEach(([k,v])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(v),k.slice(0,31))); XLSX.writeFile(wb,'RentAgro_exportacion.xlsx')}
 
-  const [costo, setCosto] = useState({
-    fecha: new Date().toISOString().slice(0,10),
-    cultivo: 'Soja',
-    tipo_costo: 'Herbicida',
-    concepto: '',
-    cantidad_por_ha: 0,
-    costo_unitario: 0,
-    hectareas: 0
-  });
-
-  const [venta, setVenta] = useState({
-    fecha: new Date().toISOString().slice(0,10),
-    cultivo: 'Soja',
-    toneladas: 0,
-    precio_tn: 0,
-    comprador: ''
-  });
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (session) {
-      const e = localStorage.getItem('empresaId');
-      const c = localStorage.getItem('campaniaId');
-      const l = localStorage.getItem('loteId');
-      if (e) setEmpresaId(e);
-      if (c) setCampaniaId(c);
-      if (l) setLoteId(l);
-    }
-  }, [session]);
-
-  useEffect(() => {
-    if (empresaId) cargarDatos();
-  }, [empresaId]);
-
-  async function registrar() {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) return setMensaje(error.message);
-    setMensaje('Usuario creado. Revisá tu correo si Supabase pide confirmación.');
-  }
-
-  async function ingresar() {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return setMensaje(error.message);
-    setMensaje('Ingreso correcto.');
-  }
-
-  async function salir() {
-    await supabase.auth.signOut();
-    setSession(null);
-  }
-
-  async function crearEmpresa() {
-    const { data, error } = await supabase
-      .from('empresas')
-      .insert({ nombre: empresaNombre, pais: 'Argentina' })
-      .select()
-      .single();
-
-    if (error) return setMensaje(error.message);
-
-    setEmpresaId(data.id);
-    localStorage.setItem('empresaId', data.id);
-
-    await supabase.from('usuarios_empresa').insert({
-      user_id: session.user.id,
-      empresa_id: data.id,
-      nombre: session.user.email,
-      email: session.user.email,
-      rol: 'admin'
-    });
-
-    setMensaje('Empresa creada.');
-  }
-
-  async function crearCampania() {
-    if (!empresaId) return setMensaje('Primero creá una empresa.');
-
-    const { data, error } = await supabase
-      .from('campanias')
-      .insert({ empresa_id: empresaId, nombre: campaniaNombre })
-      .select()
-      .single();
-
-    if (error) return setMensaje(error.message);
-
-    setCampaniaId(data.id);
-    localStorage.setItem('campaniaId', data.id);
-    setMensaje('Campaña creada.');
-  }
-
-  async function crearLote() {
-    if (!empresaId) return setMensaje('Primero creá una empresa.');
-
-    const { data, error } = await supabase
-      .from('lotes')
-      .insert({ empresa_id: empresaId, nombre: loteNombre, superficie_ha: Number(loteHa) })
-      .select()
-      .single();
-
-    if (error) return setMensaje(error.message);
-
-    setLoteId(data.id);
-    localStorage.setItem('loteId', data.id);
-    setMensaje('Lote creado.');
-  }
-
-  async function guardarCosto() {
-    if (!empresaId || !campaniaId || !loteId) return setMensaje('Creá empresa, campaña y lote primero.');
-
-    const { error } = await supabase.from('costos_agricolas').insert({
-      empresa_id: empresaId,
-      campania_id: campaniaId,
-      lote_id: loteId,
-      fecha: costo.fecha,
-      cultivo: costo.cultivo,
-      tipo_costo: costo.tipo_costo,
-      concepto: costo.concepto,
-      cantidad_por_ha: Number(costo.cantidad_por_ha),
-      costo_unitario: Number(costo.costo_unitario),
-      hectareas: Number(costo.hectareas),
-      creado_por: session.user.id
-    });
-
-    if (error) return setMensaje(error.message);
-    setMensaje('Costo guardado.');
-    cargarDatos();
-  }
-
-  async function guardarVenta() {
-    if (!empresaId || !campaniaId) return setMensaje('Creá empresa y campaña primero.');
-
-    const { error } = await supabase.from('ventas_agricolas').insert({
-      empresa_id: empresaId,
-      campania_id: campaniaId,
-      fecha: venta.fecha,
-      cultivo: venta.cultivo,
-      toneladas: Number(venta.toneladas),
-      precio_tn: Number(venta.precio_tn),
-      comprador: venta.comprador,
-      creado_por: session.user.id
-    });
-
-    if (error) return setMensaje(error.message);
-    setMensaje('Venta guardada.');
-    cargarDatos();
-  }
-
-  async function cargarDatos() {
-    const costosRes = await supabase
-      .from('costos_agricolas')
-      .select('*')
-      .eq('empresa_id', empresaId)
-      .order('fecha', { ascending: false });
-
-    const ventasRes = await supabase
-      .from('ventas_agricolas')
-      .select('*')
-      .eq('empresa_id', empresaId)
-      .order('fecha', { ascending: false });
-
-    setCostos(costosRes.data || []);
-    setVentas(ventasRes.data || []);
-  }
-
-  const totalCostos = costos.reduce((a, r) => a + Number(r.costo_total || 0), 0);
-  const totalVentas = ventas.reduce((a, r) => a + Number(r.ingreso_total || 0), 0);
-
-  if (!session) {
-    return (
-      <main className="container">
-        <h1>Rent<span>Agro</span></h1>
-        <p>Login real conectado a Supabase.</p>
-
-        <section className="card">
-          <h2>Ingresar</h2>
-          <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-          <input placeholder="Contraseña" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          <button onClick={ingresar}>Ingresar</button>
-          <button className="dark" onClick={registrar}>Crear usuario</button>
-          <p className="msg">{mensaje}</p>
-        </section>
-      </main>
-    );
-  }
-
-  return (
-    <main className="container">
-      <header className="top">
-        <div>
-          <h1>Rent<span>Agro</span></h1>
-          <p>{session.user.email}</p>
-        </div>
-        <button className="danger" onClick={salir}>Salir</button>
-      </header>
-
-      {mensaje && <p className="notice">{mensaje}</p>}
-
-      <section className="grid">
-        <div className="card kpi">
-          <p>Ingreso agrícola</p>
-          <h2>${totalVentas.toLocaleString('es-AR')}</h2>
-        </div>
-        <div className="card kpi">
-          <p>Costo agrícola</p>
-          <h2>${totalCostos.toLocaleString('es-AR')}</h2>
-        </div>
-        <div className="card kpi">
-          <p>Margen</p>
-          <h2>${(totalVentas - totalCostos).toLocaleString('es-AR')}</h2>
-        </div>
-      </section>
-
-      <section className="grid">
-        <div className="card">
-          <h2>Alta inicial</h2>
-          <input value={empresaNombre} onChange={e => setEmpresaNombre(e.target.value)} />
-          <button onClick={crearEmpresa}>Crear empresa</button>
-
-          <input value={campaniaNombre} onChange={e => setCampaniaNombre(e.target.value)} />
-          <button onClick={crearCampania}>Crear campaña</button>
-
-          <input value={loteNombre} onChange={e => setLoteNombre(e.target.value)} />
-          <input type="number" value={loteHa} onChange={e => setLoteHa(e.target.value)} />
-          <button onClick={crearLote}>Crear lote</button>
-        </div>
-
-        <div className="card">
-          <h2>Costo agrícola</h2>
-          <input type="date" value={costo.fecha} onChange={e => setCosto({...costo, fecha: e.target.value})} />
-          <select value={costo.cultivo} onChange={e => setCosto({...costo, cultivo: e.target.value})}>
-            <option>Soja</option><option>Maíz</option><option>Trigo</option><option>Girasol</option>
-          </select>
-          <input placeholder="Concepto" value={costo.concepto} onChange={e => setCosto({...costo, concepto: e.target.value})} />
-          <input placeholder="Cantidad por ha" type="number" value={costo.cantidad_por_ha} onChange={e => setCosto({...costo, cantidad_por_ha: e.target.value})} />
-          <input placeholder="Costo unitario" type="number" value={costo.costo_unitario} onChange={e => setCosto({...costo, costo_unitario: e.target.value})} />
-          <input placeholder="Hectáreas" type="number" value={costo.hectareas} onChange={e => setCosto({...costo, hectareas: e.target.value})} />
-          <button onClick={guardarCosto}>Guardar costo</button>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>Venta agrícola</h2>
-        <input type="date" value={venta.fecha} onChange={e => setVenta({...venta, fecha: e.target.value})} />
-        <select value={venta.cultivo} onChange={e => setVenta({...venta, cultivo: e.target.value})}>
-          <option>Soja</option><option>Maíz</option><option>Trigo</option><option>Girasol</option>
-        </select>
-        <input placeholder="Toneladas" type="number" value={venta.toneladas} onChange={e => setVenta({...venta, toneladas: e.target.value})} />
-        <input placeholder="Precio $/tn" type="number" value={venta.precio_tn} onChange={e => setVenta({...venta, precio_tn: e.target.value})} />
-        <input placeholder="Comprador" value={venta.comprador} onChange={e => setVenta({...venta, comprador: e.target.value})} />
-        <button onClick={guardarVenta}>Guardar venta</button>
-      </section>
-
-      <section className="card">
-        <h2>Costos guardados</h2>
-        <table>
-          <thead><tr><th>Fecha</th><th>Cultivo</th><th>Concepto</th><th>Total</th></tr></thead>
-          <tbody>{costos.map(r => <tr key={r.id}><td>{r.fecha}</td><td>{r.cultivo}</td><td>{r.concepto}</td><td>${Number(r.costo_total || 0).toLocaleString('es-AR')}</td></tr>)}</tbody>
-        </table>
-      </section>
-
-      <section className="card">
-        <h2>Ventas guardadas</h2>
-        <table>
-          <thead><tr><th>Fecha</th><th>Cultivo</th><th>Tn</th><th>Total</th></tr></thead>
-          <tbody>{ventas.map(r => <tr key={r.id}><td>{r.fecha}</td><td>{r.cultivo}</td><td>{r.toneladas}</td><td>${Number(r.ingreso_total || 0).toLocaleString('es-AR')}</td></tr>)}</tbody>
-        </table>
-      </section>
-    </main>
-  );
+ if(!session)return <main className="container"><h1>Rent<span>Agro</span></h1><p>Gestión agrícola y ganadera conectada a Supabase.</p><section className="card"><h2>Ingresar</h2><input placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)}/><input placeholder="Contraseña" type="password" value={password} onChange={e=>setPassword(e.target.value)}/><button onClick={ingresar}>Ingresar</button><button className="dark" onClick={registrar}>Crear usuario</button>{msg&&<p className="notice">{msg}</p>}</section></main>;
+ return <main className="container"><header className="top"><div><h1>Rent<span>Agro</span></h1><p>{session.user.email}</p></div><button className="danger" onClick={salir}>Salir</button></header>{msg&&<p className="notice">{msg}</p>}
+ <section className="card"><label>Empresa activa</label><select value={empresaId} onChange={e=>setEmpresaId(e.target.value)}><option value="">Seleccionar</option>{empresas.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select><label>Campaña activa</label><select value={campaniaId} onChange={e=>setCampaniaId(e.target.value)}><option value="">Seleccionar</option>{campanias.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select><label>Lote activo</label><select value={loteId} onChange={e=>setLoteId(e.target.value)}><option value="">Seleccionar</option>{lotes.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select></section>
+ <nav className="tabs">{['dashboard','alta','agricultura','ganaderia','reportes'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}<button onClick={exportar}>Exportar Excel</button></nav>
+ {tab==='dashboard'&&<section><div className="grid four"><Kpi title="Ingreso agrícola" value={money(r.ia)}/><Kpi title="Costo agrícola" value={money(r.caa)}/><Kpi title="Margen agrícola" value={money(r.ma)}/><Kpi title="Resultado total" value={money(r.total)}/></div><div className="grid two"><Kpi title="Ingreso ganadero" value={money(r.ig)}/><Kpi title="Costo ganadero" value={money(r.cgx)}/></div></section>}
+ {tab==='alta'&&<section className="grid two"><Form title="Crear empresa" data={empresa} setData={setEmpresa} fields={['nombre','pais','provincia','localidad']} onSave={crearEmpresa}/><Form title="Crear campaña" data={campania} setData={setCampania} fields={['nombre','fecha_inicio','fecha_fin','estado']} onSave={()=>insertar('campanias',{...campania,empresa_id:empresaId},'Campaña creada.')}/><Form title="Crear lote" data={lote} setData={setLote} fields={['nombre','campo','superficie_ha','provincia','localidad','tenencia','costo_alquiler_ha','cultivo_actual']} onSave={()=>insertar('lotes',{...lote,empresa_id:empresaId},'Lote creado.')}/></section>}
+ {tab==='agricultura'&&<section><div className="grid three"><Form title="Producción agrícola" data={pa} setData={setPa} fields={['fecha','cultivo','hectareas','rinde_esperado_qq_ha','rinde_real_qq_ha','toneladas','precio_estimado','observaciones']} onSave={()=>insertar('produccion_agricola',{...pa,empresa_id:empresaId,campania_id:campaniaId,lote_id:loteId,creado_por:session.user.id},'Producción guardada.')}/><Form title="Costo agrícola" data={ca} setData={setCa} fields={['fecha','cultivo','categoria','concepto','cantidad_por_ha','costo_unitario','hectareas','unidad','moneda','proveedor','forma_pago','observaciones']} onSave={()=>insertar('costos_agricolas',{...ca,tipo_costo:ca.categoria,empresa_id:empresaId,campania_id:campaniaId,lote_id:loteId,creado_por:session.user.id},'Costo guardado.')}/><Form title="Venta agrícola" data={va} setData={setVa} fields={['fecha','cultivo','cantidad','unidad','toneladas','precio','precio_tn','moneda','comprador','condicion','estado']} onSave={()=>insertar('ventas_agricolas',{...va,empresa_id:empresaId,campania_id:campaniaId,creado_por:session.user.id},'Venta guardada.')}/></div><Table title="Costos agrícolas" rows={costosAgri} cols={['fecha','cultivo','categoria','concepto','hectareas','costo_total']}/><Table title="Ventas agrícolas" rows={ventasAgri} cols={['fecha','cultivo','toneladas','precio_tn','ingreso_total','comprador']}/></section>}
+ {tab==='ganaderia'&&<section><div className="grid two"><Form title="Stock ganadero" data={sg} setData={setSg} fields={['fecha','categoria','cabezas','peso_promedio_kg','campo_lote','observaciones']} onSave={()=>insertar('stock_ganadero',{...sg,empresa_id:empresaId,campania_id:campaniaId,creado_por:session.user.id},'Stock guardado.')}/><Form title="Producción ganadera" data={pg} setData={setPg} fields={['fecha','categoria','potrero','cabezas','peso_inicial_kg','peso_final_kg','dias_ciclo']} onSave={()=>insertar('produccion_ganadera',{...pg,empresa_id:empresaId,campania_id:campaniaId,creado_por:session.user.id},'Producción ganadera guardada.')}/><Form title="Costo ganadero" data={cg} setData={setCg} fields={['fecha','categoria','tipo_costo','concepto','costo_total','cabezas','moneda','proveedor','observaciones']} onSave={()=>insertar('costos_ganaderos',{...cg,empresa_id:empresaId,campania_id:campaniaId,creado_por:session.user.id},'Costo ganadero guardado.')}/><Form title="Venta ganadera" data={vg} setData={setVg} fields={['fecha','categoria','cabezas','kilos_vendidos','precio_kg','comprador','comision','flete','moneda']} onSave={()=>insertar('ventas_ganaderas',{...vg,empresa_id:empresaId,campania_id:campaniaId,creado_por:session.user.id},'Venta ganadera guardada.')}/></div><Table title="Stock" rows={stockGan} cols={['fecha','categoria','cabezas','peso_promedio_kg','campo_lote']}/><Table title="Ventas ganaderas" rows={ventasGan} cols={['fecha','categoria','cabezas','kilos_vendidos','precio_kg','ingreso_total']}/></section>}
+ {tab==='reportes'&&<section className="grid two"><Report title="Resumen agrícola" items={[['Producción total',prodAgri.reduce((a,x)=>a+n(x.toneladas),0).toFixed(2)+' tn'],['Costos',money(r.caa)],['Ventas',money(r.ia)],['Margen',money(r.ma)]]}/><Report title="Resumen ganadero" items={[['Cabezas stock',stockGan.reduce((a,x)=>a+n(x.cabezas),0)],['Costos',money(r.cgx)],['Ventas',money(r.ig)],['Margen',money(r.mg)]]}/></section>}
+ </main>
 }
+function Kpi({title,value}){return <div className="card kpi"><p>{title}</p><h2>{value}</h2></div>}
+function Form({title,data,setData,fields,onSave}){const nums=['superficie_ha','costo_alquiler_ha','hectareas','rinde_esperado_qq_ha','rinde_real_qq_ha','toneladas','precio_estimado','cantidad_por_ha','costo_unitario','cantidad','precio','precio_tn','cabezas','peso_promedio_kg','peso_inicial_kg','peso_final_kg','dias_ciclo','costo_total','kilos_vendidos','precio_kg','comision','flete']; return <div className="card"><h2>{title}</h2>{fields.map(f=><label key={f}>{f.replaceAll('_',' ')}<input type={f.includes('fecha')?'date':nums.includes(f)?'number':'text'} value={data[f]??''} onChange={e=>setData({...data,[f]:e.target.value})}/></label>)}<button onClick={onSave}>Guardar</button></div>}
+function Table({title,rows,cols}){return <div className="card tablewrap"><h2>{title}</h2><table><thead><tr>{cols.map(c=><th key={c}>{c.replaceAll('_',' ')}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id||i}>{cols.map(c=><td key={c}>{String(r[c]??'')}</td>)}</tr>)}</tbody></table></div>}
+function Report({title,items}){return <div className="card"><h2>{title}</h2>{items.map(([k,v])=><p key={k}><b>{k}:</b> {v}</p>)}</div>}
