@@ -3,7 +3,18 @@ import { useEffect,useMemo,useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import * as XLSX from 'xlsx';
 const money=v=>'$'+Math.round(Number(v||0)).toLocaleString('es-AR'), num=v=>Number(v||0), today=()=>new Date().toISOString().slice(0,10);
-const nums=['superficie_ha','costo_alquiler_ha','hectareas','toneladas','precio_estimado','cantidad_por_ha','costo_unitario','cantidad','precio','precio_tn','cabezas','peso_inicial_kg','peso_final_kg','dias_ciclo','costo_total','kilos_vendidos','precio_kg','comision','flete','stock_minimo','precio_promedio','cantidad_total','superficie_m2','valor_compra','gastos_escritura','remodelacion','valor_alquiler_mensual','expensas_impuestos','valor_venta_estimado','costo_total','monto','precio_m2'];
+const nums=['superficie_ha','costo_alquiler_ha','hectareas','rinde_esperado_qq_ha','rinde_real_qq_ha','toneladas','precio_estimado','cantidad_por_ha','costo_unitario','cantidad','precio','precio_tn','cabezas','peso_inicial_kg','peso_final_kg','dias_ciclo','costo_total','ingreso_total','kg_producidos','kilos_vendidos','precio_kg','comision','flete','stock_minimo','precio_promedio','cantidad_total','superficie_m2','valor_compra','gastos_escritura','remodelacion','valor_alquiler_mensual','expensas_impuestos','valor_venta_estimado','monto','precio_m2','inversion_total'];
+const generatedFields=['costo_total','ingreso_total','kg_producidos','inversion_total','precio_m2'];
+function limpiarPayload(obj,{editar=false}={}){
+  const limpio={...obj};
+  Object.keys(limpio).forEach(k=>{
+    if(['id','created_at','updated_at','empresa_id','creado_por'].includes(k)||(editar&&generatedFields.includes(k))) delete limpio[k];
+    else if(nums.includes(k)) limpio[k]=limpio[k]===''||limpio[k]===null||limpio[k]===undefined?0:Number(limpio[k]);
+    else if((k.endsWith('_id')||k==='user_id')&&limpio[k]==='') limpio[k]=null;
+    else if(k.includes('fecha')&&limpio[k]==='') limpio[k]=null;
+  });
+  return limpio;
+}
 export default function Home(){
  const [session,setSession]=useState(null),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[msg,setMsg]=useState(''),[tab,setTab]=useState('dashboard'),[edit,setEdit]=useState(null);
  const [empresaId,setEmpresaId]=useState(''),[campaniaId,setCampaniaId]=useState(''),[loteId,setLoteId]=useState('');
@@ -43,11 +54,11 @@ export default function Home(){
  const puedeEditar=['admin','administrador','operador'].includes(miRol);
  const puedeEliminar=['admin','administrador'].includes(miRol);
  const puedeGestionarRoles=['admin','administrador'].includes(miRol);
- async function insertar(t,p,ok){if(!puedeCrear)return setMsg('Tu rol es Consulta: solo podés ver reportes y datos.'); if(!empresaId&&t!=='empresas')return setMsg('Primero creá o seleccioná una empresa.');let {error}=await supabase.from(t).insert(p); if(error)return setMsg(error.message); setMsg(ok);cargar();}
+ async function insertar(t,p,ok){if(!puedeCrear)return setMsg('Tu rol es Consulta: solo podés ver reportes y datos.'); if(!empresaId&&t!=='empresas')return setMsg('Primero creá o seleccioná una empresa.'); const payload=limpiarPayload(p); let {error}=await supabase.from(t).insert(payload); if(error)return setMsg(error.message); setMsg(ok);cargar();}
  async function borrar(t,id){if(!puedeEliminar)return setMsg('Solo Administrador puede eliminar registros.'); if(!confirm('¿Seguro que querés borrar este dato?'))return;let {error}=await supabase.from(t).delete().eq('id',id); if(error)return setMsg(error.message); setMsg('Dato borrado.');setEdit(null);cargar();}
  async function subirImagen(file,actualizar){if(!file)return; const ext=file.name.split('.').pop(); const path=`${empresaId||'sin_empresa'}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`; const {error}=await supabase.storage.from('rentagro-imagenes').upload(path,file,{upsert:false}); if(error)return setMsg('Error al subir imagen: '+error.message); const {data}=supabase.storage.from('rentagro-imagenes').getPublicUrl(path); actualizar(data.publicUrl); setMsg('Imagen cargada.');}
- async function guardarEdicion(){if(!puedeEditar)return setMsg('Tu rol es Consulta: no podés editar registros.'); const {tabla,row}=edit, limpio={...row}; ['id','created_at','updated_at','empresa_id','creado_por'].forEach(k=>delete limpio[k]); let {error}=await supabase.from(tabla).update(limpio).eq('id',row.id); if(error)return setMsg(error.message); setMsg('Dato actualizado.');setEdit(null);cargar();}
- async function guardarRolUsuario(){if(!puedeGestionarRoles)return setMsg('Solo Administrador puede gestionar usuarios.'); if(!nuevoUsuario.email)return setMsg('Ingresá el email del usuario.'); const payload={...nuevoUsuario,email:nuevoUsuario.email.trim().toLowerCase(),empresa_id:empresaId}; let {error}=await supabase.from('usuarios_empresa').upsert(payload,{onConflict:'empresa_id,email'}); if(error)return setMsg(error.message); setMsg('Rol guardado.'); setNuevoUsuario({email:'',nombre:'',rol:'operador',activo:true}); cargar();}
+ async function guardarEdicion(){if(!puedeEditar)return setMsg('Tu rol es Consulta: no podés editar registros.'); const {tabla,row}=edit, limpio=limpiarPayload(row,{editar:true}); let {error}=await supabase.from(tabla).update(limpio).eq('id',row.id); if(error)return setMsg(error.message); setMsg('Dato actualizado.');setEdit(null);cargar();}
+ async function guardarRolUsuario(){if(!puedeGestionarRoles)return setMsg('Solo Administrador puede gestionar usuarios.'); if(!nuevoUsuario.email)return setMsg('Ingresá el email del usuario.'); const payload=limpiarPayload({...nuevoUsuario,email:nuevoUsuario.email.trim().toLowerCase(),empresa_id:empresaId}); let {error}=await supabase.from('usuarios_empresa').upsert(payload,{onConflict:'empresa_id,email'}); if(error)return setMsg(error.message); setMsg('Rol guardado.'); setNuevoUsuario({email:'',nombre:'',rol:'operador',activo:true}); cargar();}
  async function desactivarUsuario(u){if(!puedeGestionarRoles)return setMsg('Solo Administrador puede gestionar usuarios.'); if(u.email===session.user.email)return setMsg('No podés desactivarte a vos misma.'); let {error}=await supabase.from('usuarios_empresa').update({activo:false}).eq('id',u.id); if(error)return setMsg(error.message); setMsg('Usuario desactivado.'); cargar();}
  const stockInsumos=useMemo(()=>insumos.map(i=>({...i,stock_actual:movInsumos.filter(m=>m.insumo_id===i.id).reduce((a,m)=>['compra','ajuste_positivo'].includes(m.tipo_movimiento)?a+num(m.cantidad):['salida_aplicacion','ajuste_negativo'].includes(m.tipo_movimiento)?a-num(m.cantidad):a,0)})),[insumos,movInsumos]);
  const stockAlertas=stockInsumos.filter(i=>num(i.stock_actual)<=num(i.stock_minimo));
