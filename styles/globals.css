@@ -15,3 +15,20 @@ textarea{width:100%;box-sizing:border-box;min-height:86px;padding:12px;margin:6p
 .tablewrap table button{min-width:42px}.card h2{margin-top:0}label{font-weight:600;text-transform:capitalize;color:#374151}
 @media(max-width:900px){.selectors{grid-template-columns:1fr}.dashboard-hero{display:block}.tabs{top:96px;overflow-x:auto;flex-wrap:nowrap}.tabs button{white-space:nowrap}.hero{top:8px}.top.hero{display:flex;flex-direction:column;gap:10px}.top.hero button{align-self:flex-start}table{font-size:13px}th,td{padding:8px}.card{padding:16px}.kpi h2{font-size:23px}}
 @media(max-width:520px){.container{padding:10px}.logo{font-size:29px}.dashboard-hero h1{font-size:27px}button{width:auto;padding:10px 12px}.tabs{gap:6px}.tabs button{font-size:13px;padding:10px}.card{border-radius:16px}.actions{min-width:98px}}
+
+/* Pantallas con imagen de fondo por módulo */
+.module-screen{position:relative;border-radius:26px;padding:18px;margin-top:10px;overflow:hidden;background-size:cover;background-position:center;background-repeat:no-repeat;box-shadow:inset 0 0 0 1px rgba(255,255,255,.36)}
+.module-screen::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.82),rgba(255,255,255,.58));backdrop-filter:blur(1px);z-index:0}
+.module-screen>*{position:relative;z-index:1}.module-screen .card{background:rgba(255,255,255,.91);backdrop-filter:blur(5px)}
+.dashboard-screen{background-image:url('/backgrounds/dashboard.svg')}.alta-screen{background-image:url('/backgrounds/agricultura.svg')}.agricultura-screen{background-image:url('/backgrounds/agricultura.svg')}.insumos-screen{background-image:url('/backgrounds/insumos.svg')}.ganaderia-screen{background-image:url('/backgrounds/ganaderia.svg')}.inmobiliaria-screen{background-image:url('/backgrounds/inmobiliaria.svg')}.reportes-screen{background-image:url('/backgrounds/reportes.svg')}.usuarios-screen{background-image:url('/backgrounds/dashboard.svg')}
+.agricultura-screen .card,.alta-screen .card{border-color:rgba(21,128,61,.28)}.insumos-screen .card{border-color:rgba(15,118,110,.28)}.ganaderia-screen .card{border-color:rgba(146,64,14,.28)}.inmobiliaria-screen .card{border-color:rgba(124,58,237,.28)}.reportes-screen .card{border-color:rgba(37,99,235,.28)}
+.agricultura-screen h2,.alta-screen h2{color:#14532d}.insumos-screen h2{color:#0f766e}.ganaderia-screen h2{color:#78350f}.inmobiliaria-screen h2{color:#5b21b6}.reportes-screen h2{color:#1d4ed8}
+@media(max-width:900px){.module-screen{padding:10px;border-radius:20px;background-position:center top}.module-screen::before{background:rgba(255,255,255,.78)}}
+
+
+/* Corrección acciones editar/eliminar */
+.edit-overlay{position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:28px;overflow:auto}
+.editbox{width:min(980px,96vw);border:2px solid rgba(37,99,235,.28);box-shadow:0 24px 70px rgba(0,0,0,.25)}
+.edit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.edit-head h2{margin-bottom:4px}.edit-head p{margin-top:0;color:#4b5563}
+.actions button{pointer-events:auto;position:relative;z-index:2}.tablewrap{position:relative;z-index:1}
+@media(max-width:700px){.edit-overlay{padding:10px}.edit-head{display:block}.editbox{width:100%}}
