@@ -9,6 +9,8 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "xlsx": "latest"
+    "xlsx": "latest",
+    "jspdf": "latest",
+    "jspdf-autotable": "latest"
   }
 }
